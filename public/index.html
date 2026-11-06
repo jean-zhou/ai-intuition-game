@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>第一直觉 · 快问快答</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f6f4ef;
+    color: #2b2a26;
+    user-select: none;
+  }
+
+  /* ---------- 文案页 ---------- */
+  #intro {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 32px 24px;
+    background: radial-gradient(circle at 20% 15%, #fdf0d5 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, #d9e8d4 0%, transparent 45%), #f6f4ef;
+    z-index: 10;
+    transition: opacity .4s ease;
+  }
+  #intro.hidden { opacity: 0; pointer-events: none; }
+  #intro h1 {
+    font-size: clamp(32px, 6vw, 56px);
+    letter-spacing: .12em;
+    margin-bottom: 8px;
+  }
+  #intro .sub {
+    font-size: 13px; letter-spacing: .5em; color: #9a958a;
+    margin-bottom: 36px; text-indent: .5em;
+  }
+  #intro .copy {
+    max-width: 560px; font-size: clamp(15px, 2.2vw, 17px);
+    line-height: 2; color: #55524a; margin-bottom: 32px;
+    white-space: pre-line;
+  }
+  #modeSel {
+    display: flex; gap: 12px; margin-bottom: 36px;
+  }
+  .modeBtn {
+    font-family: inherit; font-size: 15px; letter-spacing: .1em;
+    padding: 12px 28px; border-radius: 999px; cursor: pointer;
+    border: 1.5px solid #d5d0c4; background: transparent; color: #55524a;
+    transition: all .15s ease;
+  }
+  .modeBtn.selected {
+    background: #2b2a26; color: #f6f4ef; border-color: #2b2a26;
+    box-shadow: 0 4px 14px rgba(43,42,38,.2);
+  }
+  #startBtn {
+    font-size: 20px; letter-spacing: .3em; text-indent: .3em;
+    padding: 18px 64px; border: none; border-radius: 999px;
+    background: #2b2a26; color: #f6f4ef; cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+    box-shadow: 0 8px 24px rgba(43,42,38,.25);
+  }
+  #startBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(43,42,38,.35); }
+  #startBtn:active { transform: translateY(0) scale(.97); }
+  #intro .tips { margin-top: 28px; font-size: 13px; color: #9a958a; line-height: 1.8; }
+
+  /* ---------- 游戏页 ---------- */
+  #game { position: absolute; inset: 0; display: none; }
+  #game.active { display: flex; flex-direction: column; }
+
+  #status {
+    text-align: center; padding: 10px 0 4px; flex-shrink: 0;
+    font-size: 13px; color: #9a958a; letter-spacing: .15em;
+  }
+  #status .round { color: #55524a; }
+
+  #arena {
+    flex: 1; display: flex; min-height: 0;
+  }
+  .card {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    text-align: center; cursor: pointer; position: relative;
+    background: #fffdf8; border: none; outline: none;
+    font-family: inherit;
+    transition: background .15s ease, transform .1s ease;
+    overflow: hidden;
+  }
+  .card .label {
+    font-size: clamp(22px, 4.5vw, 44px);
+    font-weight: 600; line-height: 1.5; padding: 24px;
+    max-width: 90%;
+    opacity: 0; transform: translateY(14px);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .card.shown .label { opacity: 1; transform: translateY(0); }
+  .card:hover { background: #fff9ec; }
+  .card:active { transform: scale(.985); }
+  .card.picked { background: #dff0d8; }
+  .card.picked .label { color: #2f6b2f; }
+  .card.dimmed { background: #efece4; }
+  .card.dimmed .label { opacity: .35; }
+
+  /* 桌面：左右分屏，中间细分隔线 */
+  .card + .card { border-left: 1px solid #e8e4da; }
+  /* 手机竖屏：上下分屏 */
+  @media (max-aspect-ratio: 1/1) {
+    #arena { flex-direction: column; }
+    .card + .card { border-left: none; border-top: 1px solid #e8e4da; }
+    .card .label { font-size: clamp(26px, 7vw, 40px); }
+  }
+  .card .keyHint {
+    position: absolute; bottom: 18px; left: 0; right: 0;
+    font-size: 12px; color: #c4bfb2; letter-spacing: .2em;
+  }
+  @media (pointer: coarse) { .keyHint { display: none; } }
+
+  #timeoutNote {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(43,42,38,.85); color: #fff;
+    font-size: 14px; letter-spacing: .2em; text-indent: .2em;
+    padding: 10px 22px; border-radius: 999px;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    z-index: 5;
+  }
+  #timeoutNote.show { opacity: 1; }
+
+  /* ---------- 本局完成页 ---------- */
+  #done {
+    position: absolute; inset: 0; z-index: 12;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 32px 24px;
+    background: radial-gradient(circle at 20% 15%, #fdf0d5 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, #d9e8d4 0%, transparent 45%), #f6f4ef;
+  }
+  #done.active { display: flex; }
+  #done h2 { font-size: clamp(30px, 5vw, 44px); letter-spacing: .15em; margin-bottom: 12px; }
+  #done .doneSub { font-size: 15px; color: #9a958a; letter-spacing: .1em; margin-bottom: 44px; }
+  #done .doneBtns { display: flex; gap: 16px; }
+  #done button {
+    font-family: inherit; font-size: 17px; letter-spacing: .15em; text-indent: .15em;
+    padding: 15px 40px; border-radius: 999px; cursor: pointer; transition: all .15s ease;
+  }
+  #againBtn { border: none; background: #2b2a26; color: #f6f4ef; box-shadow: 0 6px 18px rgba(43,42,38,.25); }
+  #againBtn:hover { transform: translateY(-2px); }
+  #backBtn { border: 1.5px solid #d5d0c4; background: transparent; color: #55524a; }
+  #backBtn:hover { border-color: #2b2a26; }
+
+  /* ---------- 直觉画像 ---------- */
+  #insightBox {
+    margin-top: 40px; width: min(640px, 92%);
+    display: flex; flex-direction: column; align-items: center;
+  }
+  #insightMeta { font-size: 13px; color: #9a958a; letter-spacing: .1em; margin-bottom: 14px; }
+  #analyzeBtn {
+    font-family: inherit; font-size: 15px; letter-spacing: .12em; text-indent: .12em;
+    padding: 12px 36px; border-radius: 999px; cursor: pointer; transition: all .15s ease;
+    border: none; background: #e07a4f; color: #fff; box-shadow: 0 5px 16px rgba(224,122,79,.35);
+  }
+  #analyzeBtn:hover { transform: translateY(-2px); }
+  #analyzeBtn:disabled { opacity: .55; cursor: wait; transform: none; }
+  #insightResult {
+    display: none; width: 100%; margin-top: 22px; padding: 24px 26px;
+    background: #fffdf8; border-radius: 16px; text-align: left;
+    font-size: 14.5px; line-height: 1.9; color: #44413a;
+    white-space: pre-wrap; box-shadow: 0 4px 18px rgba(43,42,38,.08);
+    max-height: 46vh; overflow-y: auto;
+  }
+  #insightResult.show { display: block; }
+  #clearBtn {
+    margin-top: 16px; background: none; border: none; cursor: pointer;
+    font-family: inherit; font-size: 12px; color: #c4bfb2; letter-spacing: .08em;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  #clearBtn:hover { color: #e07a4f; }
+</style>
+</head>
+<body>
+
+<div id="intro">
+  <h1>第一直觉</h1>
+  <div class="sub">快 问 快 答</div>
+  <div class="copy">屏幕上会出现两个事物。
+
+不要思考，不要权衡，
+在倒计时结束前，选出更吸引你的那一个。
+
+你的第一反应，就是你内心真实的排序。</div>
+  <div id="modeSel">
+    <button class="modeBtn selected" data-mode="life">生活题</button>
+    <button class="modeBtn" data-mode="abstract">抽象题</button>
+  </div>
+  <button id="startBtn">开 始</button>
+  <div class="tips">每局 30 题 · 生活题限时 5 秒 · 抽象题限时 8 秒 · 键盘 ← → 或点击卡片<br>超时会随机替你选择——相信直觉，别让理性接管</div>
+</div>
+
+<div id="game">
+  <div id="status">第 <span class="round" id="roundNum">1</span> 题</div>
+  <div id="arena">
+    <button class="card" id="cardL"><span class="label" id="labelL"></span><span class="keyHint">← / A</span></button>
+    <button class="card" id="cardR"><span class="label" id="labelR"></span><span class="keyHint">→ / L</span></button>
+  </div>
+  <div id="timeoutNote">时间到，直觉替你做了选择</div>
+</div>
+
+<div id="done">
+  <h2>本局完成</h2>
+  <p class="doneSub">30 道题 · 你的直觉已经说话了</p>
+  <div class="doneBtns">
+    <button id="againBtn">再来一局</button>
+    <button id="backBtn">换个类型</button>
+  </div>
+  <div id="insightBox">
+    <div id="insightMeta">已积累 0 道记录</div>
+    <button id="analyzeBtn">生成我的直觉画像</button>
+    <div id="insightResult"></div>
+    <button id="clearBtn">清空我的记录</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const ROUND_MS_LIFE = 5000;      // 生活题：选项短，5 秒足够
+  const ROUND_MS_ABSTRACT = 8000;  // 抽象题：字多有意境，给足阅读时间
+  const ROUNDS_PER_GAME = 30;      // 每局题数
+  const PREFETCH_AHEAD = 3;
+
+  const intro = document.getElementById('intro');
+  const game = document.getElementById('game');
+  const roundNum = document.getElementById('roundNum');
+  const cardL = document.getElementById('cardL');
+  const cardR = document.getElementById('cardR');
+  const labelL = document.getElementById('labelL');
+  const labelR = document.getElementById('labelR');
+  const timeoutNote = document.getElementById('timeoutNote');
+
+  // ---------- 本地兜底词库（网络/服务异常时前端直接出题，节奏永不断） ----------
+  const LOCAL_PAIRS = [
+    ['海边的日出','山顶的星空'],['火锅','冰西瓜'],['睡到自然醒','凌晨四点的电影'],
+    ['听懂动物说话','会说所有外语'],['手写信','惊喜包裹'],['雨中狂奔','堆雪人'],
+    ['深夜热汤面','清晨咖啡'],['绿皮火车','跨海轮船'],['会飞','会隐身'],
+    ['不用排队','不用堵车'],['爆汁蜜桃','脆苹果'],['老家的夏天','大学的秋天'],
+    ['森林小木屋','海边灯塔'],['中一万块','捡到一只猫'],['小卖部','楼下的大人们'],
+    ['说走就走','精心筹备'],['雨后泥土味','晒过的被子味'],['图书馆','咖啡馆'],
+    ['钢琴','吉他'],['冬天的奶茶','夏天的冰可乐'],['记住每个梦','永不做噩梦'],
+    ['城市最高楼','最深的海底'],['半夜泡面','考试后的烧烤'],['忠诚的狗','高冷的猫'],
+    ['旧书页','新课本'],['山顶云海','岛上潮汐'],['回到十年前','去往十年后'],
+    ['清晨五点','凌晨一点'],['大汗淋漓的球赛','深夜散步'],['外婆做的菜','街角小馆'],
+    ['过目不忘','绝对音感'],['南方过冬','北方看雪'],['一套漫画','一柜手办'],
+    ['热气球','潜水艇'],['一群发小','一个知己'],['秋天的银杏','春天的樱花'],
+    ['会做菜','会烘焙'],['流星雨','极光'],['胶片电影','巨幕投影'],
+    ['改变过去','看一天未来'],['被鸟叫醒','被雨声哄睡'],['装回忆的旧箱子','存照片的旧手机'],
+    ['草原骑马','沙漠骑骆驼'],['第一台游戏机','现在的旗舰手机'],['通往海边的路','通往山顶的路'],
+    ['游泳','滑雪'],['深夜电台','清晨新闻'],['妈妈的饺子','朋友们的火锅'],
+    ['古镇一周','雪山一周'],['暂停时间','倒退时间'],['无限流量','无限电量'],
+    ['一键收拾房间','一键做完家务'],['外卖不洒','快递不晚'],['唱歌好听','讲故事好听'],
+    ['超大书架','超软沙发'],['夏天的空调','冬天的暖气'],['和植物交流','和婴儿交流'],
+    ['永不感冒','永不失眠'],['永远合脚的鞋','永远合身的外套'],['粉色天空','双彩虹']
+  ];
+
+  // 生活题兜底词库：接地气的日常小选择
+  const LIFE_PAIRS = [
+    ['麻辣烫','重庆小面'],['奶茶','咖啡'],['在家做饭','点外卖'],
+    ['火锅','烧烤'],['米饭','面条'],['饺子','包子'],
+    ['可乐','雪碧'],['甜豆腐脑','咸豆腐脑'],['关东煮','煎饼果子'],
+    ['逛街','宅家'],['看电影','看剧'],['KTV','桌游店'],
+    ['早睡','再刷一会儿手机'],['打车','坐地铁'],['走路','骑车'],
+    ['存起来','买喜欢的'],['新衣服','新鞋子'],['周末补觉','周末出游'],
+    ['海边','游乐园'],['爬山','逛公园'],['猫咖','狗咖'],
+    ['苹果','橘子'],['西瓜','葡萄'],['早餐吃包子','早餐吃三明治'],
+    ['提前规划','说走就走'],['听歌','听播客'],['拍照记录','用心记住'],
+    ['早上跑步','晚上散步'],['泡脚','热敷肩颈'],['午睡20分钟','撑到晚上'],
+    ['攒钱旅行','及时行乐'],['大床房','特色民宿'],['看日出','睡懒觉'],
+    ['便利店','路边摊'],['自己泡茶','买瓶装的'],['健身房','在家跟练'],
+    ['一起吃日料','一起吃韩餐'],['看喜剧片','看悬疑片'],['纸质书','电子书'],
+    ['AA 制','轮流请客'],['发语音','打字'],['秒回消息','忙完再回']
+  ];
+
+  // ---------- 状态 ----------
+  let playing = false;
+  let round = 0;
+  let queue = [];          // 预生成缓冲队列
+  let timerId = null;
+  let locked = true;       // 本题已选择/已超时，防止重复触发（开局先锁，第一题显示后才解锁）
+  let mode = 'life';       // 出题类型：life 生活题 / abstract 抽象题
+  let answered = 0;        // 本局已答题目数
+  const done = document.getElementById('done');
+
+  // ---------- 首页题目类型切换 ----------
+  document.querySelectorAll('.modeBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mode = btn.dataset.mode;
+      document.querySelectorAll('.modeBtn').forEach(b => b.classList.toggle('selected', b === btn));
+    });
+  });
+
+  // ---------- 客观记录：只记原始数据，分析判断全部交给 AI ----------
+  const RECORD_KEY = 'intuition_records';
+  const MAX_RECORDS = 600;          // 本地最多留 600 条
+  const ANALYZE_MIN = 30;           // 至少 1 局才能生成画像
+  const ANALYZE_SEND_MAX = 200;     // 每次最多把最近 200 条发给 AI
+  let currentQ = null;              // 当前题的元信息
+  let qStart = 0;                   // 本题计时起点（选项渲染完成后）
+
+  function loadRecords() {
+    try { return JSON.parse(localStorage.getItem(RECORD_KEY) || '[]'); } catch (e) { return []; }
+  }
+  function saveRecord(rec) {
+    try {
+      let arr = loadRecords();
+      arr.push(rec);
+      if (arr.length > MAX_RECORDS) arr = arr.slice(-MAX_RECORDS);
+      localStorage.setItem(RECORD_KEY, JSON.stringify(arr));
+    } catch (e) { /* 隐私模式等场景存不进就跳过，不影响游戏 */ }
+  }
+  function updateInsightMeta() {
+    const n = loadRecords().length;
+    document.getElementById('insightMeta').textContent =
+      n >= ANALYZE_MIN ? ('已积累 ' + n + ' 道记录 · 可以生成画像了')
+                       : ('已积累 ' + n + ' / ' + ANALYZE_MIN + ' 道记录，攒够即可生成直觉画像');
+    document.getElementById('analyzeBtn').style.display = n >= ANALYZE_MIN ? '' : 'none';
+    document.getElementById('clearBtn').style.display = n > 0 ? '' : 'none';
+  }
+
+  // ---------- 出题：优先用缓冲的 AI 题，缓冲空了用本地词库，节奏永不断 ----------
+  function localPick() {
+    const bank = (mode === 'life' ? LIFE_PAIRS : LOCAL_PAIRS);
+    const p = bank[Math.floor(Math.random() * bank.length)];
+    return { left: p[0], right: p[1] };
+  }
+  let pending = 0;         // 正在请求中的题目数
+  function fetchQuestion() {
+    pending++;
+    fetch('/api/question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: mode })
+    })
+      .then(r => r.json())
+      .then(q => { pending--; if (q && q.left && q.right) queue.push(q); })
+      .catch(() => { pending--; });
+  }
+  // 缓冲不足时补发请求（pending 同步递增，循环必然终止，不会卡死）
+  function ensureBuffer() { while (queue.length + pending < PREFETCH_AHEAD) fetchQuestion(); }
+  function nextQuestion() {
+    if (queue.length) return queue.shift();
+    return localPick();
+  }
+
+  // ---------- 倒计时（仅计时，不显示进度条；到时随机替选） ----------
+  function currentRoundMs() { return mode === 'life' ? ROUND_MS_LIFE : ROUND_MS_ABSTRACT; }
+  function startTimer() {
+    clearTimeout(timerId);
+    timerId = setTimeout(() => { pick(Math.random() < 0.5 ? 'L' : 'R', true); }, currentRoundMs());
+  }
+
+  // ---------- 出题 ----------
+  function showNext() {
+    locked = false;
+    round++;
+    roundNum.textContent = round + ' / ' + ROUNDS_PER_GAME;
+    const q = nextQuestion();
+    currentQ = {
+      round: round,
+      left: q.left,
+      right: q.right,
+      category: q.category || '未标注',
+      mode: mode,
+      ms: currentRoundMs()
+    };
+    qStart = 0;
+    cardL.classList.remove('picked', 'dimmed', 'shown');
+    cardR.classList.remove('picked', 'dimmed', 'shown');
+    labelL.textContent = q.left;
+    labelR.textContent = q.right;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      cardL.classList.add('shown');
+      cardR.classList.add('shown');
+      qStart = performance.now();   // 计时起点：选项真正渲染出来之后
+    }));
+    startTimer();
+    ensureBuffer();   // 答题的同时，后台悄悄预取后面的题
+  }
+
+  // ---------- 选择 ----------
+  function pick(side, isTimeout) {
+    if (!playing || locked) return;
+    locked = true;
+    clearTimeout(timerId);
+    const pickedCard = side === 'L' ? cardL : cardR;
+    const otherCard  = side === 'L' ? cardR : cardL;
+    pickedCard.classList.add('picked');
+    otherCard.classList.add('dimmed');
+    if (isTimeout) {
+      timeoutNote.classList.add('show');
+      setTimeout(() => timeoutNote.classList.remove('show'), 700);
+    }
+    answered++;
+    // 客观记录本题原始数据（快慢判断交给 AI）
+    if (currentQ) {
+      saveRecord({
+        round: currentQ.round,
+        left: currentQ.left,
+        right: currentQ.right,
+        category: currentQ.category,
+        mode: currentQ.mode,
+        choice: side,
+        reactionMs: isTimeout || !qStart ? currentQ.ms : Math.round(performance.now() - qStart),
+        timeout: !!isTimeout,
+        ms: currentQ.ms,
+        ts: Date.now()
+      });
+    }
+    const next = () => { answered >= ROUNDS_PER_GAME ? endRound() : showNext(); };
+    setTimeout(next, isTimeout ? 550 : 280);   // 短暂停顿给反馈，然后下一题或结算
+  }
+
+  cardL.addEventListener('click', () => pick('L'));
+  cardR.addEventListener('click', () => pick('R'));
+  document.addEventListener('keydown', (e) => {
+    if (!playing) {
+      if (e.key === 'Enter' || e.key === ' ') start();
+      return;
+    }
+    if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') pick('L');
+    if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') pick('R');
+    if (e.key === 'Escape') endGame();
+  });
+
+  // ---------- 开始 / 结束 ----------
+  function start() {
+    if (playing) return;
+    playing = true;
+    round = 0;
+    answered = 0;
+    queue = [];
+    done.classList.remove('active');
+    ensureBuffer();
+    intro.classList.add('hidden');
+    game.classList.add('active');
+    setTimeout(showNext, 350);
+  }
+  function endGame() {
+    playing = false;
+    clearTimeout(timerId);
+    game.classList.remove('active');
+    done.classList.remove('active');
+    intro.classList.remove('hidden');
+  }
+  // 30 题答完，本局结算
+  function endRound() {
+    playing = false;
+    clearTimeout(timerId);
+    game.classList.remove('active');
+    updateInsightMeta();
+    done.classList.add('active');
+  }
+
+  // ---------- 直觉画像：把原始记录交给 AI 分析 ----------
+  document.getElementById('analyzeBtn').addEventListener('click', () => {
+    const btn = document.getElementById('analyzeBtn');
+    const result = document.getElementById('insightResult');
+    const records = loadRecords().slice(-ANALYZE_SEND_MAX);
+    btn.disabled = true;
+    btn.textContent = '正在解读你的直觉…';
+    result.classList.remove('show');
+    fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records: records })
+    })
+      .then(r => r.json())
+      .then(d => {
+        result.textContent = (d && d.text) || '分析暂时不可用，稍后再试试。';
+        result.classList.add('show');
+      })
+      .catch(() => {
+        result.textContent = '网络不太顺畅，画像没生成出来。喝口水，再点一次试试。';
+        result.classList.add('show');
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = '重新生成直觉画像';
+      });
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    if (confirm('确定清空所有选择记录吗？此操作不可恢复。')) {
+      localStorage.removeItem(RECORD_KEY);
+      updateInsightMeta();
+      const result = document.getElementById('insightResult');
+      result.classList.remove('show');
+      result.textContent = '';
+    }
+  });
+
+  document.getElementById('againBtn').addEventListener('click', () => {
+    done.classList.remove('active');
+    start();
+  });
+  document.getElementById('backBtn').addEventListener('click', () => {
+    done.classList.remove('active');
+    intro.classList.remove('hidden');
+  });
+
+  document.getElementById('startBtn').addEventListener('click', start);
+})();
+</script>
+</body>
+</html>

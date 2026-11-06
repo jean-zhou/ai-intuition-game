@@ -1,0 +1,12 @@
+{
+  "name": "intuition-game",
+  "version": "1.0.0",
+  "description": "第一直觉 · 快问快答 - 快速潜意识选择训练游戏",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
